@@ -1,3 +1,4 @@
+import cv2
 import time
 import hybo
 import numpy as np
@@ -8,8 +9,8 @@ SERIAL_DEV = '/dev/ttyUSB0'
 def visualize_points(points):
     plt.clf()
     plt.scatter(points[:, 0], points[:, 1], c='b', marker='o', s=10)
-    plt.xlim(0, 4000)
-    plt.ylim(0, 4000)
+    plt.xlim(0, 400)
+    plt.ylim(0, 400)
     plt.gca().set_aspect('equal', adjustable='box')
     plt.xlabel('X')
     plt.ylabel('Y')
