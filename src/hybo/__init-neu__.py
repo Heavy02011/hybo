@@ -14,18 +14,8 @@ class LidarPacketizer(Packetizer):
     def __init__(self, on_frame=None):
         super().__init__()
         self.on_frame = on_frame
-
     """
-    # original version
     def handle_packet(self, packet):
-        #  0: packet size(4),
-        #  4: frame sequence(2),
-        #  6: data type(2, not using, fixed),
-        #  8: time_peak_sec(4), time_peak_ms(4),
-        # 16: time_imu_sec(4, not working), time_imu_ms(4, not working)
-        # 24: point data(2880) = [x(2), y(2), x(2)] * 480
-        # -4: checksum(4)
-
         packet_size, seq = struct.unpack("<IH", packet[:6])
         checksum, = struct.unpack("<I", packet[-4:])
 
@@ -33,7 +23,8 @@ class LidarPacketizer(Packetizer):
         if not is_valid:
             return
 
-        time_peak = ".".join(struct.unpack("<II", packet[8:16]))
+        # dtype(not using), time_peak_sec, time_peak_ms, time_imu_sec(not working), time_imu_ms(not working)
+        _, time_peak_sec, time_peak_ms, _, _ = struct.unpack("<HIIII", packet[6:24])
 
         # parse points
         points = np.frombuffer(packet[24:-4], dtype='int16').reshape(-1, 3)
@@ -41,35 +32,39 @@ class LidarPacketizer(Packetizer):
         if self.on_frame:
             self.on_frame({
                 "sequence": seq,
-                "time_peak": float(time_peak),
+                "time_peak": float(f"{time_peak_sec}.{time_peak_ms}"),
                 "points": points
             })
-
     """
     def handle_packet(self, packet):
-    packet_size, seq = struct.unpack("<IH", packet[:6])
-    checksum, = struct.unpack("<I", packet[-4:])
+        if len(packet) < 6:
+            return
+        
+        packet_size, seq = struct.unpack("<IH", packet[:6])
+        checksum, = struct.unpack("<I", packet[-4:])
 
-    is_valid = packet_size == HYBO_PACKET_SIZE and checksum == sum(packet[4:-4])
-    if not is_valid:
-        return
+        is_valid = packet_size == HYBO_PACKET_SIZE and checksum == sum(packet[4:-4])
+        if not is_valid:
+            return
 
-    time_peak = ".".join(struct.unpack("<II", packet[8:16]))
+        #time_peak = ".".join(struct.unpack("<II", packet[8:16]))
+        time_peak = ".".join(map(str, struct.unpack("<II", packet[8:16])))
 
-    # parse points
-    try:
-        points = np.frombuffer(packet[24:-4], dtype='int16').reshape(-1, 3)
-    except ValueError:
-        print(f"Invalid packet size: {len(packet[24:-4])}")
-        print(f"Packet content: {packet}")
-        return
 
-    if self.on_frame:
-        self.on_frame({
-            "sequence": seq,
-            "time_peak": float(time_peak),
-            "points": points
-        })
+        # parse points
+        try:
+            points = np.frombuffer(packet[24:-4], dtype='int16').reshape(-1, 3)
+        except ValueError:
+            #print(f"Invalid packet size: {len(packet[24:-4])}")
+            #print(f"Packet content: {packet}")
+            return
+
+        if self.on_frame:
+            self.on_frame({
+                "sequence": seq,
+                "time_peak": float(time_peak),
+                "points": points
+            })    
 
 
 class Lidar:
@@ -102,3 +97,4 @@ class Lidar:
 
     def get_latest_frame(self):
         return self.latest_frame
+
